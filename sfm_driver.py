@@ -13,7 +13,15 @@ from rich.console import Console
 import process_data_utils
 import colmap_utils
 import hloc_utils
+import numpy as np
+import torch
 
+# --- Fix R2D2 numpy.float32 -> torch.Tensor bug ---
+try:
+    from torch.utils.data._utils import collate
+    collate.default_collate_fn_map[np.ndarray] = lambda batch, collate_fn_map=None: torch.as_tensor(np.stack(batch))
+except Exception as e:
+    print("⚠️ Warning: Could not patch collate map, R2D2 may crash:", e)
 CONSOLE = Console()
 
 
