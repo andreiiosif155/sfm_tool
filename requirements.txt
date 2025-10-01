@@ -1,0 +1,25 @@
+# Core
+numpy<2.0        # avoid NumPy 2.x issues with pycolmap/torch
+torch==2.3.1+cu118
+torchvision==0.18.1+cu118
+torchaudio==2.3.1+cu118
+--extra-index-url https://download.pytorch.org/whl/cu118
+
+tyro>=0.6.6
+rich>=13.0.0
+packaging>=23.0
+
+# Image & video processing
+opencv-python>=4.5
+imageio>=2.31
+imageio-ffmpeg>=0.4.9
+rawpy>=0.17     # optional: support for RAW image formats
+matplotlib>=3.7
+
+# SfM / HLoc
+git+https://github.com/colmap/pycolmap.git@v3.12.5
+git+https://github.com/cvg/Hierarchical-Localization.git@master
+
+# Utils
+appdirs>=1.4.4
+requests>=2.31
