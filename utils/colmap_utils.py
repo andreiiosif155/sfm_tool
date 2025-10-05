@@ -1,12 +1,9 @@
-
-"""
-Tools supporting the execution of COLMAP and preparation of COLMAP-based datasets for nerfstudio training.
-"""
-
 from enum import Enum
+
 
 class CameraModel(Enum):
     """Supported camera models for COLMAP."""
+
     OPENCV = "OPENCV"
     SIMPLE_PINHOLE = "SIMPLE_PINHOLE"
     PINHOLE = "PINHOLE"
@@ -14,6 +11,8 @@ class CameraModel(Enum):
     RADIAL = "RADIAL"
     OPENCV_FISHEYE = "OPENCV_FISHEYE"
 
+import subprocess
+import sys
 import json
 from pathlib import Path
 from typing import Any, Dict, Literal, Optional, Union
@@ -28,7 +27,7 @@ from rich.progress import track
 
 # TODO(1480) use pycolmap instead of colmap_parsing_utils
 # import pycolmap
-from colmap_parsing_utils import (
+from .colmap_parsing_utils import (
     qvec2rotmat,
     read_cameras_binary,
     read_images_binary,
@@ -36,8 +35,31 @@ from colmap_parsing_utils import (
     read_points3D_text,
 )
 
-from rich_utils import CONSOLE, status
-from scripts import run_command
+from .rich_utils import CONSOLE, status
+
+
+def run_command(cmd: str, verbose=False) -> Optional[str]:
+    """Runs a command and returns the output.
+
+    Args:
+        cmd: Command to run.
+        verbose: If True, logs the output of the command.
+    Returns:
+        The output of the command if return_output is True, otherwise None.
+    """
+    out = subprocess.run(cmd, capture_output=not verbose, shell=True, check=False)
+    if out.returncode != 0:
+        CONSOLE.rule(
+            "[bold red] :skull: :skull: :skull: ERROR :skull: :skull: :skull: ",
+            style="red",
+        )
+        CONSOLE.print(f"[bold red]Error running command: {cmd}")
+        CONSOLE.rule(style="red")
+        CONSOLE.print(out.stderr.decode("utf-8"))
+        sys.exit(1)
+    if out.stdout is not None:
+        return out.stdout.decode("utf-8")
+    return out
 
 
 def get_colmap_version(colmap_cmd: str, default_version: str = "3.8") -> Version:
@@ -57,7 +79,9 @@ def get_colmap_version(colmap_cmd: str, default_version: str = "3.8") -> Version
             version = line.split(" ")[1]
             version = Version(version)
             return version
-    CONSOLE.print(f"[bold red]Could not find COLMAP version. Using default {default_version}")
+    CONSOLE.print(
+        f"[bold red]Could not find COLMAP version. Using default {default_version}"
+    )
     return Version(default_version)
 
 
@@ -70,7 +94,9 @@ def get_vocab_tree() -> Path:
     vocab_tree_filename = Path(appdirs.user_data_dir("nerfstudio")) / "vocab_tree.fbow"
 
     if not vocab_tree_filename.exists():
-        r = requests.get("https://demuc.de/colmap/vocab_tree_flickr100K_words32K.bin", stream=True)
+        r = requests.get(
+            "https://demuc.de/colmap/vocab_tree_flickr100K_words32K.bin", stream=True
+        )
         vocab_tree_filename.parent.mkdir(parents=True, exist_ok=True)
         with open(vocab_tree_filename, "wb") as f:
             total_length = r.headers.get("content-length")
@@ -126,9 +152,15 @@ def run_colmap(
         f"--SiftExtraction.use_gpu {int(gpu)}",
     ]
     if camera_mask_path is not None:
-        feature_extractor_cmd.append(f"--ImageReader.camera_mask_path {camera_mask_path}")
+        feature_extractor_cmd.append(
+            f"--ImageReader.camera_mask_path {camera_mask_path}"
+        )
     feature_extractor_cmd = " ".join(feature_extractor_cmd)
-    with status(msg="[bold yellow]Running COLMAP feature extractor...", spinner="moon", verbose=verbose):
+    with status(
+        msg="[bold yellow]Running COLMAP feature extractor...",
+        spinner="moon",
+        verbose=verbose,
+    ):
         run_command(feature_extractor_cmd, verbose=verbose)
 
     CONSOLE.log("[bold green]:tada: Done extracting COLMAP features.")
@@ -141,9 +173,15 @@ def run_colmap(
     ]
     if matching_method == "vocab_tree":
         vocab_tree_filename = get_vocab_tree()
-        feature_matcher_cmd.append(f'--VocabTreeMatching.vocab_tree_path "{vocab_tree_filename}"')
+        feature_matcher_cmd.append(
+            f'--VocabTreeMatching.vocab_tree_path "{vocab_tree_filename}"'
+        )
     feature_matcher_cmd = " ".join(feature_matcher_cmd)
-    with status(msg="[bold yellow]Running COLMAP feature matcher...", spinner="runner", verbose=verbose):
+    with status(
+        msg="[bold yellow]Running COLMAP feature matcher...",
+        spinner="runner",
+        verbose=verbose,
+    ):
         run_command(feature_matcher_cmd, verbose=verbose)
     CONSOLE.log("[bold green]:tada: Done matching COLMAP features.")
 
@@ -170,7 +208,9 @@ def run_colmap(
     CONSOLE.log("[bold green]:tada: Done COLMAP bundle adjustment.")
 
     if refine_intrinsics:
-        with status(msg="[bold yellow]Refine intrinsics...", spinner="dqpb", verbose=verbose):
+        with status(
+            msg="[bold yellow]Refine intrinsics...", spinner="dqpb", verbose=verbose
+        ):
             bundle_adjuster_cmd = [
                 f"{colmap_cmd} bundle_adjuster",
                 f"--input_path {sparse_dir}/0",
@@ -417,10 +457,14 @@ def colmap_to_json(
     cam_id_to_camera = read_cameras_binary(recon_dir / "cameras.bin")
     im_id_to_image = read_images_binary(recon_dir / "images.bin")
     if set(cam_id_to_camera.keys()) != {1}:
-        CONSOLE.print(f"[bold yellow]Warning: More than one camera is found in {recon_dir}")
+        CONSOLE.print(
+            f"[bold yellow]Warning: More than one camera is found in {recon_dir}"
+        )
         print(cam_id_to_camera)
         use_single_camera_mode = False  # update bool: one camera per frame
-        out = {}  # out = {"camera_model": parse_colmap_camera_params(cam_id_to_camera[1])["camera_model"]}
+        out = (
+            {}
+        )  # out = {"camera_model": parse_colmap_camera_params(cam_id_to_camera[1])["camera_model"]}
     else:  # one camera for all frames
         out = parse_colmap_camera_params(cam_id_to_camera[1])
 
@@ -456,13 +500,19 @@ def colmap_to_json(
             "colmap_im_id": im_id,
         }
         if camera_mask_path is not None:
-            frame["mask_path"] = camera_mask_path.relative_to(camera_mask_path.parent.parent).as_posix()
+            frame["mask_path"] = camera_mask_path.relative_to(
+                camera_mask_path.parent.parent
+            ).as_posix()
         if image_id_to_depth_path is not None:
             depth_path = image_id_to_depth_path[im_id]
-            frame["depth_file_path"] = str(depth_path.relative_to(depth_path.parent.parent))
+            frame["depth_file_path"] = str(
+                depth_path.relative_to(depth_path.parent.parent)
+            )
 
         if not use_single_camera_mode:  # add the camera parameters for this frame
-            frame.update(parse_colmap_camera_params(cam_id_to_camera[im_data.camera_id]))
+            frame.update(
+                parse_colmap_camera_params(cam_id_to_camera[im_data.camera_id])
+            )
 
         frames.append(frame)
 
@@ -476,12 +526,18 @@ def colmap_to_json(
         out["applied_transform"] = applied_transform.tolist()
 
     # create ply from colmap
-    assert ply_filename.endswith(".ply"), f"ply_filename: {ply_filename} does not end with '.ply'"
+    assert ply_filename.endswith(
+        ".ply"
+    ), f"ply_filename: {ply_filename} does not end with '.ply'"
     create_ply_from_colmap(
         ply_filename,
         recon_dir,
         output_dir,
-        torch.from_numpy(applied_transform).float() if applied_transform is not None else None,
+        (
+            torch.from_numpy(applied_transform).float()
+            if applied_transform is not None
+            else None
+        ),
     )
     out["ply_file_path"] = ply_filename
 
@@ -551,7 +607,9 @@ def create_sfm_depth(
 
     if verbose:
         iter_images = track(
-            im_id_to_image.items(), total=len(im_id_to_image.items()), description="Creating depth maps ..."
+            im_id_to_image.items(),
+            total=len(im_id_to_image.items()),
+            description="Creating depth maps ...",
         )
     else:
         iter_images = iter(im_id_to_image.items())
@@ -565,7 +623,13 @@ def create_sfm_depth(
         z = (rotation @ xyz_world.T)[-1] + im_data.tvec[-1]
         errors = np.array([ptid_to_info[pid].error for pid in pids])
         n_visible = np.array([len(ptid_to_info[pid].image_ids) for pid in pids])
-        uv = np.array([im_data.xys[i] for i in range(len(im_data.xys)) if im_data.point3D_ids[i] != -1])
+        uv = np.array(
+            [
+                im_data.xys[i]
+                for i in range(len(im_data.xys))
+                if im_data.point3D_ids[i] != -1
+            ]
+        )
         # TODO(1480) END delete when abandoning colmap_parsing_utils
 
         # TODO(1480) BEGIN use pycolmap API
@@ -620,7 +684,9 @@ def create_sfm_depth(
         image_id_to_depth_path[im_id] = depth_path
 
         if include_depth_debug:
-            assert input_images_dir is not None, "Need explicit input_images_dir for debug images"
+            assert (
+                input_images_dir is not None
+            ), "Need explicit input_images_dir for debug images"
             assert input_images_dir.exists(), input_images_dir
 
             depth_flat = torch.from_numpy(depth.flatten()[:, None])
@@ -653,7 +719,9 @@ def get_matching_summary(num_initial_frames: int, num_matched_frames: int) -> st
         return "[bold green]COLMAP found poses for all images, CONGRATS!"
     if match_ratio < 0.4:
         result = f"[bold red]COLMAP only found poses for {num_matched_frames / num_initial_frames * 100:.2f}%"
-        result += " of the images. This is low.\nThis can be caused by a variety of reasons,"
+        result += (
+            " of the images. This is low.\nThis can be caused by a variety of reasons,"
+        )
         result += " such poor scene coverage, blurry images, or large exposure changes."
         return result
     if match_ratio < 0.8:
@@ -666,7 +734,10 @@ def get_matching_summary(num_initial_frames: int, num_matched_frames: int) -> st
 
 
 def create_ply_from_colmap(
-    filename: str, recon_dir: Path, output_dir: Path, applied_transform: Union[torch.Tensor, None]
+    filename: str,
+    recon_dir: Path,
+    output_dir: Path,
+    applied_transform: Union[torch.Tensor, None],
 ) -> None:
     """Writes a ply file from colmap.
 
@@ -683,13 +754,20 @@ def create_ply_from_colmap(
         raise ValueError(f"Could not find points3D.txt or points3D.bin in {recon_dir}")
 
     # Load point Positions
-    points3D = torch.from_numpy(np.array([p.xyz for p in colmap_points.values()], dtype=np.float32))
+    points3D = torch.from_numpy(
+        np.array([p.xyz for p in colmap_points.values()], dtype=np.float32)
+    )
     if applied_transform is not None:
         assert applied_transform.shape == (3, 4)
-        points3D = torch.einsum("ij,bj->bi", applied_transform[:3, :3], points3D) + applied_transform[:3, 3]
+        points3D = (
+            torch.einsum("ij,bj->bi", applied_transform[:3, :3], points3D)
+            + applied_transform[:3, 3]
+        )
 
     # Load point colours
-    points3D_rgb = torch.from_numpy(np.array([p.rgb for p in colmap_points.values()], dtype=np.uint8))
+    points3D_rgb = torch.from_numpy(
+        np.array([p.rgb for p in colmap_points.values()], dtype=np.uint8)
+    )
 
     # write ply
     with open(output_dir / filename, "w") as f:

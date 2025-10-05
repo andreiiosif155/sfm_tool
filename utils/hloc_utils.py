@@ -1,30 +1,9 @@
-"""
-Code that uses the hierarchical localization toolbox (hloc)
-to extract and match image features, estimate camera poses,
-and do sparse reconstruction.
-Requires hloc module from : https://github.com/cvg/Hierarchical-Localization
-"""
-
-# Copyright 2022 the Regents of the University of California, Nerfstudio Team and contributors. All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 import sys
 from pathlib import Path
 from typing import Literal
 
-from process_data_utils import CameraModel
-from rich_utils import CONSOLE
+from .process_data_utils import CameraModel
+from .rich_utils import CONSOLE
 
 
 def run_hloc(
@@ -34,7 +13,14 @@ def run_hloc(
     verbose: bool = False,
     matching_method: Literal["vocab_tree", "exhaustive", "sequential"] = "vocab_tree",
     feature_type: Literal[
-        "sift", "superpoint_aachen", "superpoint_max", "superpoint_inloc", "r2d2", "d2net-ss", "sosnet", "disk"
+        "sift",
+        "superpoint_aachen",
+        "superpoint_max",
+        "superpoint_inloc",
+        "r2d2",
+        "d2net-ss",
+        "sosnet",
+        "disk",
     ] = "superpoint_aachen",
     matcher_type: Literal[
         "superglue",
@@ -96,7 +82,9 @@ def run_hloc(
         sys.exit(1)
 
     if refine_pixsfm and not _HAS_PIXSFM:
-        CONSOLE.print("[bold red]Error: use refine_pixsfm, you must install pixel-perfect-sfm toolbox!!")
+        CONSOLE.print(
+            "[bold red]Error: use refine_pixsfm, you must install pixel-perfect-sfm toolbox!!"
+        )
         sys.exit(1)
 
     outputs = colmap_dir
@@ -130,7 +118,10 @@ def run_hloc(
         sfm = PixSfM(  # type: ignore
             conf={
                 "dense_features": {"use_cache": True},
-                "KA": {"dense_features": {"use_cache": True}, "max_kps_per_problem": 1000},
+                "KA": {
+                    "dense_features": {"use_cache": True},
+                    "max_kps_per_problem": 1000,
+                },
                 "BA": {"strategy": "costmaps"},
             }
         )
