@@ -1,35 +1,30 @@
-# Copyright 2022 the Regents of the University of California, Nerfstudio Team and contributors. All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 """Base class to processes a video or image sequence to a nerfstudio compatible dataset."""
 
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Literal, Optional, Tuple
 
-import colmap_utils, hloc_utils, process_data_utils
-from base_converter_to_nerfstudio_dataset import BaseConverterToNerfstudioDataset
-from process_data_utils import CAMERA_MODELS
-from nerfstudio.utils import install_checks
-from nerfstudio.utils.rich_utils import CONSOLE
+from utils import colmap_utils, hloc_utils, process_data_utils
+from utils.process_data_utils import CAMERA_MODELS
+from utils import install_checks
+from utils.rich_utils import CONSOLE
 
 
 @dataclass
-class ColmapConverterToNerfstudioDataset(BaseConverterToNerfstudioDataset):
+class SfM:
     """Base class to process images or video into a nerfstudio dataset using colmap"""
+    data: Path
+    """Path the data, either a video file or a directory of images."""
+    output_dir: Path
+    """Path to the output directory."""
+    eval_data: Optional[Path] = None
+    """Path the eval data, either a video file or a directory of images. If set to None, the first will be used both for training and eval"""
+    verbose: bool = False
+    """If True, print extra logging."""
 
-    camera_type: Literal["perspective", "fisheye", "equirectangular", "pinhole", "simple_pinhole"] = "perspective"
+    camera_type: Literal[
+        "perspective", "fisheye", "equirectangular", "pinhole", "simple_pinhole"
+    ] = "perspective"
     """Camera model to use."""
     matching_method: Literal["exhaustive", "sequential", "vocab_tree"] = "vocab_tree"
     """Feature matching method to use. Vocab tree is recommended for a balance of speed
@@ -132,7 +127,9 @@ class ColmapConverterToNerfstudioDataset(BaseConverterToNerfstudioDataset):
         """
         summary_log = []
         if (self.absolute_colmap_model_path / "cameras.bin").exists():
-            with CONSOLE.status("[bold yellow]Saving results to transforms.json", spinner="balloon"):
+            with CONSOLE.status(
+                "[bold yellow]Saving results to transforms.json", spinner="balloon"
+            ):
                 num_matched_frames = colmap_utils.colmap_to_json(
                     recon_dir=self.absolute_colmap_model_path,
                     output_dir=self.output_dir,
@@ -142,10 +139,14 @@ class ColmapConverterToNerfstudioDataset(BaseConverterToNerfstudioDataset):
                     use_single_camera_mode=self.use_single_camera_mode,
                 )
                 summary_log.append(f"Colmap matched {num_matched_frames} images")
-            summary_log.append(colmap_utils.get_matching_summary(num_frames, num_matched_frames))
+            summary_log.append(
+                colmap_utils.get_matching_summary(num_frames, num_matched_frames)
+            )
 
         else:
-            CONSOLE.log("[bold yellow]Warning: Could not find existing COLMAP results. Not generating transforms.json")
+            CONSOLE.log(
+                "[bold yellow]Warning: Could not find existing COLMAP results. Not generating transforms.json"
+            )
         return summary_log
 
     def _export_depth(self) -> Tuple[Optional[Dict[int, Path]], List[str]]:
@@ -160,9 +161,11 @@ class ColmapConverterToNerfstudioDataset(BaseConverterToNerfstudioDataset):
             depth_dir = self.output_dir / "depth"
             depth_dir.mkdir(parents=True, exist_ok=True)
             image_id_to_depth_path = colmap_utils.create_sfm_depth(
-                recon_dir=self.absolute_colmap_model_path
-                if self.skip_colmap
-                else self.output_dir / self.default_colmap_path(),
+                recon_dir=(
+                    self.absolute_colmap_model_path
+                    if self.skip_colmap
+                    else self.output_dir / self.default_colmap_path()
+                ),
                 output_dir=depth_dir,
                 include_depth_debug=self.include_depth_debug,
                 input_images_dir=self.image_dir,
@@ -200,7 +203,9 @@ class ColmapConverterToNerfstudioDataset(BaseConverterToNerfstudioDataset):
 
         # check that sfm_tool is hloc if using use_single_camera_mode
         if not self.use_single_camera_mode:
-            assert sfm_tool == "hloc", "not_use_single_camera_mode only works with sfm_tool hloc"
+            assert (
+                sfm_tool == "hloc"
+            ), "not_use_single_camera_mode only works with sfm_tool hloc"
 
         # set the image_dir if didn't copy
         if self.skip_image_processing:
@@ -222,7 +227,9 @@ class ColmapConverterToNerfstudioDataset(BaseConverterToNerfstudioDataset):
             )
         elif sfm_tool == "hloc":
             if mask_path is not None:
-                raise RuntimeError("Cannot use a mask with hloc. Please remove the cropping options and try again.")
+                raise RuntimeError(
+                    "Cannot use a mask with hloc. Please remove the cropping options and try again."
+                )
 
             assert feature_type is not None
             assert matcher_type is not None
@@ -239,10 +246,14 @@ class ColmapConverterToNerfstudioDataset(BaseConverterToNerfstudioDataset):
                 use_single_camera_mode=self.use_single_camera_mode,
             )
         else:
-            raise RuntimeError("Invalid combination of sfm_tool, feature_type, and matcher_type, exiting")
+            raise RuntimeError(
+                "Invalid combination of sfm_tool, feature_type, and matcher_type, exiting"
+            )
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.image_dir.mkdir(parents=True, exist_ok=True)
+
         install_checks.check_ffmpeg_installed()
         install_checks.check_colmap_installed(self.colmap_cmd)
 
@@ -251,3 +262,17 @@ class ColmapConverterToNerfstudioDataset(BaseConverterToNerfstudioDataset):
 
         if self.crop_bottom > 0.0:
             self.crop_factor = (0.0, self.crop_bottom, 0.0, 0.0)
+
+    @property
+    def image_dir(self) -> Path:
+        return self.output_dir / "images"
+    
+
+if __name__ == "__main__":
+    import tyro
+    tyro.extras.set_accent_color("bright_yellow")
+    args = tyro.cli(SfM)
+    summary_log = []
+
+    sfm = SfM(**vars(args))
+    sfm._run_colmap()
