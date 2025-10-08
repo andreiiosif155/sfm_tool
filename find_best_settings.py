@@ -17,10 +17,16 @@ DEFAULT_COMBINATIONS: Tuple[str, ...] = (
     "superpoint_aachen:superglue",
     "superpoint_aachen:superglue-fast",
     "superpoint_aachen:superpoint+lightglue",
+    "superpoint_aachen:NN-superpoint",
     "superpoint_max:superglue",
+    "superpoint_max:NN-superpoint",
     "superpoint_inloc:superglue",
-    "r2d2:superglue",
+    "superpoint_inloc:NN-superpoint",
+    "r2d2:NN",
+    "d2net-ss:superglue",
+    "d2net-ss:NN",
     "sosnet:superglue",
+    "sosnet:NN",
     "disk:disk+lightglue",
 )
 
@@ -86,7 +92,7 @@ class Args:
     matching_method: Literal["vocab_tree", "exhaustive", "sequential"] = "vocab_tree"
     """Image matching strategy used by hloc."""
 
-    reuse_intermediate: bool = False
+    reuse_intermediate: bool = True
     """Keep existing COLMAP outputs instead of recreating them."""
 
     verbose: bool = False
@@ -121,8 +127,37 @@ def _run_combination(
 
     # Reset the COLMAP directory when requested to ensure fresh reconstructions.
     colmap_dir = combo_output_dir / "colmap"
-    if not reuse_intermediate and colmap_dir.exists():
-        shutil.rmtree(colmap_dir)
+    if colmap_dir.exists():
+        if not reuse_intermediate:
+            shutil.rmtree(colmap_dir)
+        else:
+            sparse_dir = colmap_dir / "sparse" / "0"
+            if sparse_dir.exists():
+                CONSOLE.print(
+                    f"[bold yellow]Skipping[/] {feature_type}/{matcher_type} "
+                    f"(existing reconstruction found at {colmap_dir / 'sparse' / '0'})"
+                )
+                # Load the existing COLMAP reconstruction using pycolmap.
+                import pycolmap
+                reconstruction = pycolmap.Reconstruction(str(sparse_dir))
+                CONSOLE.print(
+                    f"[bold green]Loaded reconstruction from {sparse_dir} using pycolmap.[/]"
+                )
+
+                # Extract evaluation metrics from the loaded reconstruction.
+                stats = {
+                    "num_points3D": reconstruction.num_points3D(),
+                    "mean_track_length": reconstruction.compute_mean_track_length(),
+                    "mean_observations_per_image": reconstruction.compute_mean_observations_per_reg_image(),
+                    "mean_reprojection_error": reconstruction.compute_mean_reprojection_error(),
+                }
+
+                return EvaluationResult(
+                    feature_type=feature_type,
+                    matcher_type=matcher_type,
+                    output_dir=combo_output_dir,
+                    stats=stats,
+                )
 
     CONSOLE.print(
         f"[bold cyan]Evaluating[/] {feature_type} / {matcher_type} "
