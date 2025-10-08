@@ -9,7 +9,7 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Literal
 
 from rich.table import Table
 
-from sfm import SfM
+from sfm_tool import SfM
 from utils.rich_utils import CONSOLE
 
 
@@ -19,13 +19,13 @@ DEFAULT_COMBINATIONS: Tuple[str, ...] = (
     "superpoint_aachen:superpoint+lightglue",
     "superpoint_aachen:NN-superpoint",
     "superpoint_max:superglue",
+    "superpoint_max:superpoint+lightglue",
     "superpoint_max:NN-superpoint",
     "superpoint_inloc:superglue",
+    "superpoint_inloc:superpoint+lightglue",
     "superpoint_inloc:NN-superpoint",
     "r2d2:NN",
-    "d2net-ss:superglue",
     "d2net-ss:NN",
-    "sosnet:superglue",
     "sosnet:NN",
     "disk:disk+lightglue",
 )
@@ -258,15 +258,23 @@ def main(args: Args) -> int:
 
     results: List[EvaluationResult] = []
     for feature_type, matcher_type in combinations:
-        result = _run_combination(
-            images_dir=images_dir,
-            output_root=output_root,
-            feature_type=feature_type,
-            matcher_type=matcher_type,
-            matching_method=args.matching_method,
-            verbose=args.verbose,
-            reuse_intermediate=args.reuse_intermediate,
-        )
+        try:
+            result = _run_combination(
+                images_dir=images_dir,
+                output_root=output_root,
+                feature_type=feature_type,
+                matcher_type=matcher_type,
+                matching_method=args.matching_method,
+                verbose=args.verbose,
+                reuse_intermediate=args.reuse_intermediate,
+            )
+        except Exception as exc:
+            CONSOLE.print(
+                f"[bold red]Error while processing {feature_type}/{matcher_type}: {exc}",
+                highlight=False,
+            )
+            continue
+
         if result is not None:
             results.append(result)
 
