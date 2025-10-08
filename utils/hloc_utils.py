@@ -125,7 +125,7 @@ def run_hloc(
                 "BA": {"strategy": "costmaps"},
             }
         )
-        refined, _ = sfm.reconstruction(
+        model, _ = sfm.reconstruction(
             sfm_dir,
             image_dir,
             sfm_pairs,
@@ -136,10 +136,10 @@ def run_hloc(
             image_options=image_options,
             verbose=verbose,
         )
-        print("Refined", refined.summary())
+        print("Refined", model.summary())
 
     else:
-        reconstruction.main(  # type: ignore
+        model = reconstruction.main(  # type: ignore
             sfm_dir,
             image_dir,
             sfm_pairs,
@@ -149,3 +149,12 @@ def run_hloc(
             image_options=image_options,
             verbose=verbose,
         )
+
+    # Return eval stats
+    if model is not None:
+        return {
+            "num_points3D": model.num_points3D(),
+            "mean_track_length": model.compute_mean_track_length(),
+            "mean_observations_per_image": model.compute_mean_observations_per_reg_image(),
+            "mean_reprojection_error": model.compute_mean_reprojection_error(),
+        }
