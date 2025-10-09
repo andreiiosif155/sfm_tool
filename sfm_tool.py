@@ -39,6 +39,8 @@ class SfM:
     refine_intrinsics: bool = True
     """If True, do bundle adjustment to refine intrinsics.
     Only works with colmap sfm_tool"""
+    undistort: bool = False
+    """If True, runs COLMAP model_undistort after reconstruction."""
     feature_type: Literal[
         "any",
         "sift",
@@ -253,6 +255,25 @@ class SfM:
     
         return eval  # if sfm_tool is plain COLMAP, eval is None
 
+    def _run_undistort(self):
+        """Run COLMAP model_undistort to generate undistorted images and sparse model."""
+        undistort_dir = self.output_dir / "undistorted"
+        undistort_dir.mkdir(parents=True, exist_ok=True)
+
+        cmd = [
+            self.colmap_cmd,
+            "image_undistorter",
+            "--input_path", str(self.absolute_colmap_model_path),
+            "--image_path", str(self.image_dir),
+            "--output_path", str(undistort_dir),
+            "--output_type", "COLMAP",
+        ]
+
+        CONSOLE.log(f"[bold cyan]Running COLMAP undistortion: {' '.join(cmd)}")
+        import subprocess
+        subprocess.run(cmd, check=True)
+        CONSOLE.log(f"Undistortion complete. Output saved in {undistort_dir}")
+    
     def __post_init__(self) -> None:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.image_dir.mkdir(parents=True, exist_ok=True)
@@ -279,3 +300,5 @@ if __name__ == "__main__":
 
     sfm = SfM(**vars(args))
     sfm.run()
+    if sfm.undistort:
+        sfm._run_undistort()
