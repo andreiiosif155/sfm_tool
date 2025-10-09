@@ -25,7 +25,6 @@ DEFAULT_COMBINATIONS: Tuple[str, ...] = (
     "superpoint_inloc:superpoint+lightglue",
     "superpoint_inloc:NN-superpoint",
     "r2d2:NN",
-    "d2net-ss:NN",
     "sosnet:NN",
     "disk:disk+lightglue",
 )
