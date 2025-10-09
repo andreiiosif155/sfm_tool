@@ -183,7 +183,7 @@ class SfM:
             return image_id_to_depth_path, summary_log
         return None, summary_log
 
-    def _run_colmap(self, mask_path: Optional[Path] = None):
+    def run(self, mask_path: Optional[Path] = None):
         """
         Args:
             mask_path: Path to the camera mask. Defaults to None.
@@ -213,6 +213,7 @@ class SfM:
         else:
             image_dir = self.image_dir
 
+        eval = None
         if sfm_tool == "colmap":
             colmap_utils.run_colmap(
                 image_dir=image_dir,
@@ -234,7 +235,7 @@ class SfM:
             assert feature_type is not None
             assert matcher_type is not None
             assert matcher_type != "NN"  # Only used for colmap.
-            hloc_utils.run_hloc(
+            eval = hloc_utils.run_hloc(
                 image_dir=image_dir,
                 colmap_dir=self.absolute_colmap_path,
                 camera_model=CAMERA_MODELS[self.camera_type],
@@ -249,6 +250,8 @@ class SfM:
             raise RuntimeError(
                 "Invalid combination of sfm_tool, feature_type, and matcher_type, exiting"
             )
+    
+        return eval  # if sfm_tool is plain COLMAP, eval is None
 
     def __post_init__(self) -> None:
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -275,4 +278,4 @@ if __name__ == "__main__":
     summary_log = []
 
     sfm = SfM(**vars(args))
-    sfm._run_colmap()
+    sfm.run()
