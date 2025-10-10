@@ -157,4 +157,5 @@ def run_hloc(
             "mean_track_length": model.compute_mean_track_length(),
             "mean_observations_per_image": model.compute_mean_observations_per_reg_image(),
             "mean_reprojection_error": model.compute_mean_reprojection_error(),
+            "num_reg_images": model.num_reg_images(),
         }

@@ -52,6 +52,7 @@ class SfM:
         "d2net-ss",
         "sosnet",
         "disk",
+        "aliked-n16",
     ] = "any"
     """Type of feature to use."""
     matcher_type: Literal[
@@ -65,6 +66,7 @@ class SfM:
         "adalam",
         "disk+lightglue",
         "superpoint+lightglue",
+        "aliked+lightglue",
     ] = "any"
     """Matching algorithm."""
     num_downscales: int = 3
@@ -253,7 +255,7 @@ class SfM:
                 "Invalid combination of sfm_tool, feature_type, and matcher_type, exiting"
             )
     
-        return eval  # if sfm_tool is plain COLMAP, eval is None
+        return eval  # if sfm_tool is plain COLMAP, eval is None; should change to pycolmap loading in the future
 
     def _run_undistort(self):
         """Run COLMAP model_undistort to generate undistorted images and sparse model."""
