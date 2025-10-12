@@ -21,6 +21,7 @@ There are **two ways to run the exporter**:
    Set:
    EXPORT_POLYCAM_BINS=1
    POLYCAM_NUM_INLIERS= none or adaptive or all.
+   POLYCAM_DESCRIPTOR_DIM= 256 for superpoint, 512 for d2net, 128 for others — override auto-detection if needed
    Run `sfm_tool.py`. The exporter will read
    `out_dir/colmap/features.h5` and `out_dir/colmap/matches.h5`, then write
    `out_dir/polycam_bins/`.
@@ -46,3 +47,5 @@ There are **two ways to run the exporter**:
       --dst out_test/polycam_bins \
       --descriptor-dim 256 \
       --num-inliers all
+
+//If you see “Warning: Resizing descriptors from X to Y…”, your --descriptor-dim doesn’t match what’s in features.h5//
