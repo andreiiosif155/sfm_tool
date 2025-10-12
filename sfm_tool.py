@@ -296,11 +296,11 @@ class SfM:
 
 if __name__ == "__main__":
     import os
-    from pathlib import Path
     import tyro
 
     tyro.extras.set_accent_color("bright_yellow")
     args = tyro.cli(SfM)
+    summary_log = []
 
     sfm = SfM(**vars(args))
     sfm.run()
