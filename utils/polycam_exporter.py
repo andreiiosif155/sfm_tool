@@ -280,6 +280,30 @@ def sanitize_for_filename(name: str) -> str:
         sanitized = "unknown_image"
     return sanitized
 
+def infer_descriptor_dim_from_h5(feats_h5: Path) -> int:
+    """
+    Inspect the first entry in features.h5 and infer descriptor dimensionality.
+    Works with HLOC layouts where "descriptors" is (N,D) or (D,N).
+    Prefers common dims {512, 256, 128, 64}.
+    """
+    common = (512, 256, 128, 64)
+    with h5py.File(feats_h5, "r") as h5:
+        for key in h5.keys():
+            g = h5[key]
+            if "keypoints" not in g or "descriptors" not in g:
+                continue
+            N = int(g["keypoints"].shape[0])
+            dshape = tuple(int(x) for x in g["descriptors"].shape)
+            # candidates are dims that are not the keypoint count
+            candidates = [d for d in dshape if d != N]
+            for c in common:
+                if c in candidates:
+                    return c
+            # fallback: take the largest that isn't N
+            for d in sorted(candidates, reverse=True):
+                return d
+        raise RuntimeError("Could not infer descriptor dimension (empty or malformed H5).")
+
 def export_polycam_bins(
     sparse_dir: Path,
     images_dir: Path, 

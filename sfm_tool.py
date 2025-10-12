@@ -52,6 +52,7 @@ class SfM:
         "d2net-ss",
         "sosnet",
         "disk",
+        "aliked-n16",
     ] = "any"
     """Type of feature to use."""
     matcher_type: Literal[
@@ -65,6 +66,7 @@ class SfM:
         "adalam",
         "disk+lightglue",
         "superpoint+lightglue",
+        "aliked+lightglue",
     ] = "any"
     """Matching algorithm."""
     num_downscales: int = 3
@@ -253,7 +255,7 @@ class SfM:
                 "Invalid combination of sfm_tool, feature_type, and matcher_type, exiting"
             )
     
-        return eval  # if sfm_tool is plain COLMAP, eval is None
+        return eval  # if sfm_tool is plain COLMAP, eval is None; should change to pycolmap loading in the future
 
     def _run_undistort(self):
         """Run COLMAP model_undistort to generate undistorted images and sparse model."""
@@ -294,7 +296,7 @@ class SfM:
 
 if __name__ == "__main__":
     import os
-    from typing import Dict
+    from pathlib import Path
     import tyro
 
     tyro.extras.set_accent_color("bright_yellow")
@@ -305,61 +307,79 @@ if __name__ == "__main__":
     if sfm.undistort:
         sfm._run_undistort()
 
-    # Polycam export (optional, via env)
-    # Auto-map feature type -> descriptor dimension expected
-    _FEAT_DIM: Dict[str, int] = {
-        # 256-d
-        "superpoint": 256, "superpoint_aachen": 256,
-        "superpoint_max": 256, "superpoint_inloc": 256,
-        # 128-d
-        "sift": 128, "sosnet": 128, "disk": 128,
-        "r2d2": 128, "d2net-ss": 128,
-        # fallback if unknown
-        "any": 256,
-    }
-
-    def _infer_descriptor_dim(ft: str) -> int:
-        return _FEAT_DIM.get(ft, 256)
-
-    if os.environ.get("EXPORT_POLYCAM_BINS", "0") == "1":
+    # Polycam export (optional) 
+    # Enable by setting: EXPORT_POLYCAM_BINS=1
+    if os.getenv("EXPORT_POLYCAM_BINS", "0") == "1":
         try:
-            # Import module so we can set DESCRIPTOR_DIM before calling.
+            # Import module so we can configure its globals before calling the function.
             from utils import polycam_exporter as pexp
-        except ImportError as e:
-            print(f"[warn] Polycam export skipped: {e}")
+        except Exception as e:
+            print(f"[warn] Polycam export skipped: could not import exporter module: {e}")
         else:
-            colmap_dir = sfm.output_dir / "colmap"
-            feats_h5   = colmap_dir / "features.h5"
-            matches_h5 = colmap_dir / "matches.h5"
-            dst        = sfm.output_dir / Path(os.environ.get("POLYCAM_DST", "polycam_bins"))
+            colmap_dir  = sfm.output_dir / "colmap"
+            feats_h5    = colmap_dir / "features.h5"
+            matches_h5  = colmap_dir / "matches.h5"
+            dst         = sfm.output_dir / Path(os.getenv("POLYCAM_DST", "polycam_bins"))
 
             if feats_h5.exists() and matches_h5.exists():
-                # Choose descriptor dim automatically from feature_type (can override via env).
-                desc_dim_env = os.environ.get("POLYCAM_DESCRIPTOR_DIM")
-                if desc_dim_env:
+                #    Decide descriptor dimension
+                #    Priority: env override -> auto-detect from features.h5 -> heuristic fallback.
+                desc_env = os.getenv("POLYCAM_DESCRIPTOR_DIM")
+                used_env = False
+                if desc_env:
                     try:
-                        pexp.DESCRIPTOR_DIM = int(desc_dim_env)
+                        pexp.DESCRIPTOR_DIM = int(desc_env)
+                        used_env = True
+                        print(f"[polycam] Using descriptor dim from env: {pexp.DESCRIPTOR_DIM}")
                     except ValueError:
-                        print(f"[warn] POLYCAM_DESCRIPTOR_DIM='{desc_dim_env}' invalid, falling back to auto")
-                        pexp.DESCRIPTOR_DIM = _infer_descriptor_dim(sfm.feature_type)
-                else:
-                    pexp.DESCRIPTOR_DIM = _infer_descriptor_dim(sfm.feature_type)
+                        print(f"[warn] POLYCAM_DESCRIPTOR_DIM='{desc_env}' invalid, will auto-detect.")
 
-                # Inlier policy: "all" | "none" | "adaptive"
-                num_inliers_policy = os.environ.get("POLYCAM_NUM_INLIERS", "all")
+                if not used_env:
+                    if hasattr(pexp, "infer_descriptor_dim_from_h5"):
+                        try:
+                            pexp.DESCRIPTOR_DIM = pexp.infer_descriptor_dim_from_h5(feats_h5)
+                            print(f"[polycam] Auto-detected descriptor dim: {pexp.DESCRIPTOR_DIM}")
+                        except Exception as e:
+                            print(f"[warn] Auto-detect failed: {e}. Falling back to heuristic mapping.")
+                            # Minimal heuristic fallback by feature type
+                            FEAT_DIM_FALLBACK = {
+                                # 256-d
+                                "superpoint": 256,
+                                "superpoint_aachen": 256,
+                                "superpoint_max": 256,
+                                "superpoint_inloc": 256,
+                                # 128-d
+                                "sift": 128,
+                                "sosnet": 128,
+                                "disk": 128,
+                                "r2d2": 128,
+                                "aliked-n16": 128,
+                                # D2-Net typically 512; adjust if your HLOC config differs
+                                "d2net-ss": 512,
+                                # default
+                                "any": 256,
+                            }
+                            pexp.DESCRIPTOR_DIM = FEAT_DIM_FALLBACK.get(sfm.feature_type, 256)
+                            print(f"[polycam] Heuristic descriptor dim: {pexp.DESCRIPTOR_DIM}")
 
-                # Images dir: use original data when skip_image_processing, else the copied images
+                # Inlier policy
+                num_inliers_policy = os.getenv("POLYCAM_NUM_INLIERS", "all")  # all | none | adaptive
+
+                # Choose images dir (original vs copied)
                 images_dir = sfm.data if sfm.skip_image_processing else sfm.image_dir
 
                 # Run export
-                pexp.export_polycam_bins(
-                    sfm.absolute_colmap_model_path,
-                    images_dir,
-                    feats_h5,
-                    matches_h5,
-                    dst,
-                    num_inliers_strategy=num_inliers_policy,
-                )
-                print(f"[ok] Polycam binaries written to: {dst}")
+                try:
+                    pexp.export_polycam_bins(
+                        sfm.absolute_colmap_model_path,
+                        images_dir,
+                        feats_h5,
+                        matches_h5,
+                        dst,
+                        num_inliers_strategy=num_inliers_policy,
+                    )
+                    print(f"[ok] Polycam binaries written to: {dst}")
+                except Exception as e:
+                    print(f"[error] Polycam export failed: {e}")
             else:
                 print(f"[warn] Skipping Polycam export: expected {feats_h5} and {matches_h5} (produced by HLOC).")
