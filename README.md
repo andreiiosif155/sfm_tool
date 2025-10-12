@@ -20,7 +20,6 @@ There are **two ways to run the exporter**:
 1. Auto-run after SfM
    Set:
    EXPORT_POLYCAM_BINS=1
-   POLYCAM_DESCRIPTOR_DIM=256 for superpoint, 128 for others.
    POLYCAM_NUM_INLIERS= none or adaptive or all.
    Run `sfm_tool.py`. The exporter will read
    `out_dir/colmap/features.h5` and `out_dir/colmap/matches.h5`, then write
@@ -28,7 +27,6 @@ There are **two ways to run the exporter**:
   Command example:
     EXPORT_POLYCAM_BINS=1 \
     POLYCAM_NUM_INLIERS=all \
-    POLYCAM_DESCRIPTOR_DIM=256 \
     python3 sfm_tool.py \
       --data images \
       --output-dir out_sp256 \
