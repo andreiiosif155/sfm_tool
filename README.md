@@ -41,10 +41,10 @@ There are **two ways to run the exporter**:
    Run this after you already have `features.h5` and `matches.h5`
    Command example:
      python3 utils/polycam_exporter.py \
-     --sparse out_test/colmap/sparse/0 \
-     --features-h5 out_test/colmap/features.h5 \
-     --matches-h5 out_test/colmap/matches.h5 \
-     --images images \
-     --dst out_test/polycam_bins \
-     --descriptor-dim 256 \
-     --num-inliers all
+      --sparse out_test/colmap/sparse/0 \
+      --features-h5 out_test/colmap/features.h5 \
+      --matches-h5 out_test/colmap/matches.h5 \
+      --images images \
+      --dst out_test/polycam_bins \
+      --descriptor-dim 256 \
+      --num-inliers all
